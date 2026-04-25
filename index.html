@@ -38,9 +38,9 @@
         }
 
         const FOOD_TYPES = {
-            NORMAL: { color: '#ff0044', score: 1, duration: 5000, chance: 0.7 },
-            RARE: { color: '#ffcc00', score: 3, duration: 3500, chance: 0.2 },
-            LEGENDARY: { color: '#aa00ff', score: 10, duration: 2000, chance: 0.1 }
+            NORMAL: { color: '#ff0044', score: 1, duration: 3500, chance: 0.7, minRadius: 15 },
+            RARE: { color: '#ffcc00', score: 3, duration: 2500, chance: 0.2, minRadius: 10 },
+            LEGENDARY: { color: '#aa00ff', score: 10, duration: 1400, chance: 0.1, minRadius: 5 }
         };
 
         let snakes = [];
@@ -93,28 +93,47 @@
         }
 
         function spawnOneFood(retryCount = 0) {
-            if (retryCount > 10) return;
+            if (retryCount > 20) return;
+            
             const typeRoll = Math.random();
             let type;
             if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
-                type = 'LEGENDARY';
+                type = "LEGENDARY";
             } else if (typeRoll < FOOD_TYPES.LEGENDARY.chance + FOOD_TYPES.RARE.chance) {
-                type = 'RARE';
+                type = "RARE";
             } else {
-                type = 'NORMAL';
+                type = "NORMAL";
             }
 
-            const newFood = {
-                x: Math.floor(Math.random() * tileCount),
-                y: Math.floor(Math.random() * tileCount),
-                type: type,
-                expires: Date.now() + FOOD_TYPES[type].duration
-            };
+            const nx = Math.floor(Math.random() * tileCount);
+            const ny = Math.floor(Math.random() * tileCount);
 
-            if (!isOccupied(newFood.x, newFood.y) && !foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
-                foods.push(newFood);
+            const occupied = isOccupied(nx, ny) || foods.some(f => f.x === nx && f.y === ny);
+            
+            let farEnough = true;
+            const config = FOOD_TYPES[type];
+            let minR = config.minRadius;
+            
+            if (retryCount > 10) minR /= 2;
+            if (retryCount > 15) minR = 0;
+
+            if (minR > 0) {
+                farEnough = snakes.every(s => {
+                    const head = s.body[0];
+                    const dist = Math.abs(head.x - nx) + Math.abs(head.y - ny);
+                    return dist >= minR;
+                });
+            }
+
+            if (!occupied && farEnough) {
+                foods.push({
+                    x: nx,
+                    y: ny,
+                    type: type,
+                    expires: Date.now() + config.duration
+                });
             } else {
-                spawnOneFood(retryCount + 1); // Retry
+                spawnOneFood(retryCount + 1);
             }
         }
 
