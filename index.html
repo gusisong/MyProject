@@ -47,6 +47,7 @@
         let foods = [];
         let score = 0;
         let leaderboard = [];
+        let pendingSpawnCount = 0;
         const namePool = ['Apollo', 'Blaze', 'Comet', 'Dash', 'Echo', 'Falcon', 'Ghost', 'Hunter', 'Icarus', 'Joker', 'Krypton', 'Luna', 'Mars', 'Nova', 'Orion', 'Pulse', 'Quartz', 'Rider', 'Storm', 'Titan'];
         let usedNames = new Set();
 
@@ -74,27 +75,45 @@
         }
 
         function spawnFood() {
-            while (foods.length < 5) {
-                const typeRoll = Math.random();
-                let type;
-                if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
-                    type = 'LEGENDARY';
-                } else if (typeRoll < FOOD_TYPES.LEGENDARY.chance + FOOD_TYPES.RARE.chance) {
-                    type = 'RARE';
-                } else {
-                    type = 'NORMAL';
-                }
+            const maxFoods = 3;
+            const currentActive = foods.length;
+            const totalExistingOrPending = currentActive + pendingSpawnCount;
 
-                const newFood = {
-                    x: Math.floor(Math.random() * tileCount),
-                    y: Math.floor(Math.random() * tileCount),
-                    type: type,
-                    expires: Date.now() + FOOD_TYPES[type].duration
-                };
-
-                if (!isOccupied(newFood.x, newFood.y) && !foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
-                    foods.push(newFood);
+            if (totalExistingOrPending < maxFoods) {
+                const needed = maxFoods - totalExistingOrPending;
+                for (let i = 0; i < needed; i++) {
+                    pendingSpawnCount++;
+                    const delay = 1000 + Math.random() * 2000;
+                    setTimeout(() => {
+                        spawnOneFood();
+                        pendingSpawnCount--;
+                    }, delay);
                 }
+            }
+        }
+
+        function spawnOneFood() {
+            const typeRoll = Math.random();
+            let type;
+            if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
+                type = 'LEGENDARY';
+            } else if (typeRoll < FOOD_TYPES.LEGENDARY.chance + FOOD_TYPES.RARE.chance) {
+                type = 'RARE';
+            } else {
+                type = 'NORMAL';
+            }
+
+            const newFood = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount),
+                type: type,
+                expires: Date.now() + FOOD_TYPES[type].duration
+            };
+
+            if (!isOccupied(newFood.x, newFood.y) && !foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
+                foods.push(newFood);
+            } else {
+                spawnOneFood(); // Retry
             }
         }
 
