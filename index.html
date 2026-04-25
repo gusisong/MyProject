@@ -4,17 +4,16 @@
     <title>AI Snake Prototype</title>
     <style>
         body { background: #1a1c2c; display: flex; flex-direction: column; align-items: center; color: #fff; font-family: monospace; }
-        #ui { width: 400px; display: flex; justify-content: space-between; padding: 10px; }
-        #health-bar { display: flex; gap: 2px; }
-        .hp-segment { width: 10px; height: 10px; background: #ff0044; border: 1px solid #000; }
-        .hp-segment.lost { background: #333; }
+        #ui { width: 400px; display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        #leaderboard { display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; width: 100%; margin-top: 5px; }
+        .leaderboard-item { display: flex; justify-content: space-between; font-size: 14px; }
         canvas { border: 4px solid #333; image-rendering: pixelated; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <div id="health-bar"></div>
         <div id="score">Score: 0</div>
+        <div id="leaderboard"></div>
     </div>
     <canvas id="gameCanvas" width="400" height="400"></canvas>
     <script>
@@ -33,23 +32,21 @@
                 }
             }
         }
-        drawBackground();
 
-        let snake = [{x: 10, y: 10}];
+        let snakes = [];
         let food = {x: 5, y: 5};
-        let health = 20;
         let score = 0;
-        let dx = 0;
-        let dy = 0;
+        let leaderboard = [];
+        const namePool = ['Apollo', 'Blaze', 'Comet', 'Dash', 'Echo'];
 
-        function updateHealthUI() {
-            const bar = document.getElementById('health-bar');
-            bar.innerHTML = '';
-            for(let i=0; i<20; i++) {
-                const seg = document.createElement('div');
-                seg.className = 'hp-segment' + (i >= health ? ' lost' : '');
-                bar.appendChild(seg);
-            }
+        function initSnake(name, body = [{x: 10, y: 10}]) {
+            return {
+                body: body,
+                name: name,
+                dx: 0,
+                dy: 0,
+                color: `hsl(${Math.random() * 360}, 70%, 60%)`
+            };
         }
 
         function spawnFood() {
@@ -57,61 +54,53 @@
                 x: Math.floor(Math.random() * tileCount),
                 y: Math.floor(Math.random() * tileCount)
             };
-            // Ensure food doesn't spawn on snake
-            if (snake.some(s => s.x === food.x && s.y === food.y)) {
+            // Ensure food doesn't spawn on any snake
+            if (snakes.some(snake => snake.body.some(s => s.x === food.x && s.y === food.y))) {
                 spawnFood();
             }
         }
 
         function resetGame() {
-            snake = [{x: 10, y: 10}];
-            health = 20;
+            snakes = [initSnake(namePool[Math.floor(Math.random() * namePool.length)])];
             score = 0;
-            dx = 0;
-            dy = 0;
             spawnFood();
-            updateHealthUI();
             document.getElementById('score').innerText = `Score: ${score}`;
         }
 
-        function moveSnake() {
-            if (dx === 0 && dy === 0) return true; // Don't move if no direction
+        resetGame();
 
-            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+        function moveSnake(snake) {
+            if (snake.dx === 0 && snake.dy === 0) return true;
+
+            const head = {x: snake.body[0].x + snake.dx, y: snake.body[0].y + snake.dy};
             
             // Wall collision
             if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
-                health--;
-                updateHealthUI();
-                if (health <= 0) {
-                    alert('Game Over: Out of health!');
-                    resetGame();
-                }
+                alert(`${snake.name} hit the wall!`);
+                resetGame();
                 return false; 
             }
 
-            // Self collision
-            if (snake.some(s => s.x === head.x && s.y === head.y)) {
-                alert('Game Over: Bit yourself!');
+            // Self and other snake collision
+            if (snakes.some(s => s.body.some(seg => seg.x === head.x && seg.y === head.y))) {
+                alert(`${snake.name} crashed!`);
                 resetGame();
                 return false;
             }
 
-            snake.unshift(head);
+            snake.body.unshift(head);
             if (head.x === food.x && head.y === food.y) {
                 score++;
                 document.getElementById('score').innerText = `Score: ${score}`;
                 spawnFood();
             } else {
-                snake.pop();
+                snake.body.pop();
             }
             return true;
         }
 
-        // Initial UI setup
-        updateHealthUI();
-
-        function getPath(start, target) {
+        function getPath(snake, target) {
+            const start = snake.body[0];
             const openSet = [start];
             const cameFrom = new Map();
             const gScore = {};
@@ -139,7 +128,7 @@
                     {x: current.x+1, y: current.y}, {x: current.x-1, y: current.y},
                     {x: current.x, y: current.y+1}, {x: current.x, y: current.y-1}
                 ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
-                 .filter(p => !snake.some(s => s.x === p.x && s.y === p.y));
+                 .filter(p => !snakes.some(s => s.body.some(seg => seg.x === p.x && seg.y === p.y)));
 
                 for (let neighbor of neighbors) {
                     let tentativeGScore = gScore[key(current)] + 1;
@@ -156,18 +145,16 @@
             return null;
         }
 
-        function findSurvivalMove() {
-            const head = snake[0];
+        function findSurvivalMove(snake) {
+            const head = snake.body[0];
             const neighbors = [
                 {x: head.x+1, y: head.y}, {x: head.x-1, y: head.y},
                 {x: head.x, y: head.y+1}, {x: head.x, y: head.y-1}
             ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
-             .filter(p => !snake.some(s => s.x === p.x && s.y === p.y));
+             .filter(p => !snakes.some(s => s.body.some(seg => seg.x === p.x && seg.y === p.y)));
 
             if (neighbors.length > 0) {
-                // Simple survival: move to the neighbor that has a path to the tail, 
-                // or just the first available neighbor
-                const tail = snake[snake.length - 1];
+                const tail = snake.body[snake.body.length - 1];
                 let bestMove = neighbors[0];
                 let maxDist = -1;
                 
@@ -178,58 +165,57 @@
                         bestMove = n;
                     }
                 }
-                dx = bestMove.x - head.x;
-                dy = bestMove.y - head.y;
+                snake.dx = bestMove.x - head.x;
+                snake.dy = bestMove.y - head.y;
             }
         }
 
         function draw() {
             drawBackground();
             
-            // Draw Food (Pixel Art Style)
+            // Draw Food
             const fx = food.x * gridSize;
             const fy = food.y * gridSize;
-            ctx.fillStyle = '#ff0044'; // Apple Red
+            ctx.fillStyle = '#ff0044';
             ctx.fillRect(fx + 2, fy + 2, gridSize - 4, gridSize - 4);
-            ctx.fillStyle = '#fff'; // Shine
+            ctx.fillStyle = '#fff';
             ctx.fillRect(fx + 4, fy + 4, 4, 4);
 
-            // Draw Snake
-            snake.forEach((s, i) => {
-                const sx = s.x * gridSize;
-                const sy = s.y * gridSize;
-                
-                if (i === 0) {
-                    // Head
-                    ctx.fillStyle = '#ffffff'; // White head for clear direction
-                    ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
-                    // Optional: Draw eyes
-                    ctx.fillStyle = '#000';
-                    ctx.fillRect(sx + 4, sy + 4, 3, 3);
-                    ctx.fillRect(sx + 13, sy + 4, 3, 3);
-                } else {
-                    // Body
-                    ctx.fillStyle = '#33e033'; // Classic Pixel Green
-                    ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+            // Draw Snakes
+            snakes.forEach(snake => {
+                snake.body.forEach((s, i) => {
+                    const sx = s.x * gridSize;
+                    const sy = s.y * gridSize;
                     
-                    // Add a small inner square for detail
-                    ctx.fillStyle = '#22b122';
-                    ctx.fillRect(sx + 4, sy + 4, gridSize - 8, gridSize - 8);
-                }
+                    if (i === 0) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(sx + 4, sy + 4, 3, 3);
+                        ctx.fillRect(sx + 13, sy + 4, 3, 3);
+                    } else {
+                        ctx.fillStyle = snake.color;
+                        ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+                        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                        ctx.fillRect(sx + 4, sy + 4, gridSize - 8, gridSize - 8);
+                    }
+                });
             });
         }
 
         function gameLoop() {
-            const path = getPath(snake[0], food);
-            if (path && path.length > 0) {
-                dx = path[0].x - snake[0].x;
-                dy = path[0].y - snake[0].y;
-            } else {
-                findSurvivalMove();
-            }
-            moveSnake();
+            snakes.forEach(snake => {
+                const path = getPath(snake, food);
+                if (path && path.length > 0) {
+                    snake.dx = path[0].x - snake.body[0].x;
+                    snake.dy = path[0].y - snake.body[0].y;
+                } else {
+                    findSurvivalMove(snake);
+                }
+                moveSnake(snake);
+            });
             draw();
-            if (health > 0) setTimeout(gameLoop, 100);
+            setTimeout(gameLoop, 100);
         }
 
         gameLoop();
