@@ -321,19 +321,25 @@
             // Use a copy of the snakes array to avoid issues when splitting
             const currentSnakes = [...snakes];
             currentSnakes.forEach((snake, index) => {
-                // Target the closest food
-                let target = null;
-                let minDist = Infinity;
+                // Dynamic Planning for best target selection
+                let bestTarget = null;
+                let bestUtility = -1;
+
                 foods.forEach(f => {
                     const d = Math.abs(f.x - snake.body[0].x) + Math.abs(f.y - snake.body[0].y);
-                    if (d < minDist) {
-                        minDist = d;
-                        target = f;
+                    const timeLeft = f.expires - Date.now();
+                    // Travel time T = d * 100 ms
+                    if (d * 100 < timeLeft) {
+                        const utility = (FOOD_TYPES[f.type].score * 100) / (d + 1);
+                        if (utility > bestUtility) {
+                            bestUtility = utility;
+                            bestTarget = f;
+                        }
                     }
                 });
 
-                if (target) {
-                    const path = getPath(snake, target);
+                if (bestTarget) {
+                    const path = getPath(snake, bestTarget);
                     if (path && path.length > 0) {
                         snake.dx = path[0].x - snake.body[0].x;
                         snake.dy = path[0].y - snake.body[0].y;
