@@ -110,6 +110,101 @@
 
         // Initial UI setup
         updateHealthUI();
+
+        function getPath(start, target) {
+            const openSet = [start];
+            const cameFrom = new Map();
+            const gScore = {};
+            const fScore = {};
+            const key = p => `${p.x},${p.y}`;
+
+            gScore[key(start)] = 0;
+            fScore[key(start)] = Math.abs(start.x - target.x) + Math.abs(start.y - target.y);
+
+            while (openSet.length > 0) {
+                openSet.sort((a, b) => fScore[key(a)] - fScore[key(b)]);
+                const current = openSet.shift();
+
+                if (current.x === target.x && current.y === target.y) {
+                    const path = [];
+                    let curr = current;
+                    while (cameFrom.has(key(curr))) {
+                        path.push(curr);
+                        curr = cameFrom.get(key(curr));
+                    }
+                    return path.reverse();
+                }
+
+                const neighbors = [
+                    {x: current.x+1, y: current.y}, {x: current.x-1, y: current.y},
+                    {x: current.x, y: current.y+1}, {x: current.x, y: current.y-1}
+                ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
+                 .filter(p => !snake.some(s => s.x === p.x && s.y === p.y));
+
+                for (let neighbor of neighbors) {
+                    let tentativeGScore = gScore[key(current)] + 1;
+                    if (tentativeGScore < (gScore[key(neighbor)] || Infinity)) {
+                        cameFrom.set(key(neighbor), current);
+                        gScore[key(neighbor)] = tentativeGScore;
+                        fScore[key(neighbor)] = tentativeGScore + Math.abs(neighbor.x - target.x) + Math.abs(neighbor.y - target.y);
+                        if (!openSet.some(p => p.x === neighbor.x && p.y === neighbor.y)) {
+                            openSet.push(neighbor);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function findSurvivalMove() {
+            const head = snake[0];
+            const neighbors = [
+                {x: head.x+1, y: head.y}, {x: head.x-1, y: head.y},
+                {x: head.x, y: head.y+1}, {x: head.x, y: head.y-1}
+            ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
+             .filter(p => !snake.some(s => s.x === p.x && s.y === p.y));
+
+            if (neighbors.length > 0) {
+                // Simple survival: move to the neighbor that has a path to the tail, 
+                // or just the first available neighbor
+                const tail = snake[snake.length - 1];
+                let bestMove = neighbors[0];
+                let maxDist = -1;
+                
+                for (let n of neighbors) {
+                    let dist = Math.abs(n.x - tail.x) + Math.abs(n.y - tail.y);
+                    if (dist > maxDist) {
+                        maxDist = dist;
+                        bestMove = n;
+                    }
+                }
+                dx = bestMove.x - head.x;
+                dy = bestMove.y - head.y;
+            }
+        }
+
+        function draw() {
+            drawBackground();
+            ctx.fillStyle = '#ff0044';
+            ctx.fillRect(food.x*gridSize, food.y*gridSize, gridSize, gridSize);
+            ctx.fillStyle = '#33e033';
+            snake.forEach(s => ctx.fillRect(s.x*gridSize, s.y*gridSize, gridSize, gridSize));
+        }
+
+        function gameLoop() {
+            const path = getPath(snake[0], food);
+            if (path && path.length > 0) {
+                dx = path[0].x - snake[0].x;
+                dy = path[0].y - snake[0].y;
+            } else {
+                findSurvivalMove();
+            }
+            moveSnake();
+            draw();
+            if (health > 0) setTimeout(gameLoop, 100);
+        }
+
+        gameLoop();
     </script>
 </body>
 </html>
