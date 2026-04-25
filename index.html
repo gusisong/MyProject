@@ -37,11 +37,17 @@
             }
         }
 
+        const FOOD_TYPES = {
+            NORMAL: { color: '#ff0044', score: 1, duration: 15000, chance: 0.7 },
+            RARE: { color: '#ffcc00', score: 3, duration: 8000, chance: 0.2 },
+            LEGENDARY: { color: '#aa00ff', score: 10, duration: 4000, chance: 0.1 }
+        };
+
         let snakes = [];
-        let food = {x: 5, y: 5};
+        let foods = [];
         let score = 0;
         let leaderboard = [];
-        const namePool = ['Apollo', 'Blaze', 'Comet', 'Dash', 'Echo'];
+        const namePool = ['Apollo', 'Blaze', 'Comet', 'Dash', 'Echo', 'Falcon', 'Ghost', 'Hunter', 'Icarus', 'Joker', 'Krypton', 'Luna', 'Mars', 'Nova', 'Orion', 'Pulse', 'Quartz', 'Rider', 'Storm', 'Titan'];
 
         function initSnake(name, body = [{x: 10, y: 10}]) {
             return {
@@ -53,24 +59,53 @@
             };
         }
 
-        function isOccupied(x, y) {
-            return snakes.some(s => s.body.some(b => b.x === x && b.y === y));
+        function isOccupied(x, y, excludeSnake = null) {
+            return snakes.some(s => {
+                if (s === excludeSnake) {
+                    // When checking for a specific snake's own future move, 
+                    // we only care about its body except the head (which will move)
+                    // and the tail (which will usually move out, unless it just ate)
+                    // But for simplicity, we check the whole body but allow the caller to exclude
+                    return s.body.some(b => b.x === x && b.y === y);
+                }
+                return s.body.some(b => b.x === x && b.y === y);
+            });
         }
 
         function spawnFood() {
-            food = {
+            const typeRoll = Math.random();
+            let type;
+            if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
+                type = 'LEGENDARY';
+            } else if (typeRoll < FOOD_TYPES.LEGENDARY.chance + FOOD_TYPES.RARE.chance) {
+                type = 'RARE';
+            } else {
+                type = 'NORMAL';
+            }
+
+            const newFood = {
                 x: Math.floor(Math.random() * tileCount),
-                y: Math.floor(Math.random() * tileCount)
+                y: Math.floor(Math.random() * tileCount),
+                type: type,
+                expires: Date.now() + FOOD_TYPES[type].duration
             };
-            // Ensure food doesn't spawn on any snake
-            if (isOccupied(food.x, food.y)) {
+
+            if (isOccupied(newFood.x, newFood.y) || foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
                 spawnFood();
+            } else {
+                foods.push(newFood);
             }
         }
 
+        let currentRoundSnakeName = "";
+
         function updateLeaderboard() {
             if (score > 0) {
-                leaderboard.push({score: score, date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})});
+                leaderboard.push({
+                    score: score, 
+                    name: currentRoundSnakeName,
+                    date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})
+                });
                 leaderboard.sort((a, b) => b.score - a.score);
                 leaderboard = leaderboard.slice(0, 5);
             }
@@ -83,7 +118,7 @@
                 html += leaderboard.map((l, i) => 
                     `<div class="leaderboard-item">
                         <span class="rank">#${i+1}</span>
-                        <span class="score">${l.score} PTS</span>
+                        <span class="score">${l.name}: ${l.score} PTS</span>
                         <span class="date">${l.date}</span>
                     </div>`
                 ).join('');
@@ -91,12 +126,16 @@
             lbDiv.innerHTML = html;
         }
 
+        let gameRunning = true;
         function resetGame() {
             updateLeaderboard();
-            snakes = [initSnake(namePool[Math.floor(Math.random() * namePool.length)])];
+            currentRoundSnakeName = namePool[Math.floor(Math.random() * namePool.length)];
+            snakes = [initSnake(currentRoundSnakeName)];
             score = 0;
+            foods = [];
             spawnFood();
             document.getElementById('score').innerText = `Score: ${score}`;
+            gameRunning = true;
         }
 
         resetGame();
@@ -114,16 +153,27 @@
             }
 
             // Global collision detection
-            if (isOccupied(head.x, head.y)) {
+            // Check if head hits any body (including its own, but excluding the head's current pos)
+            const collision = snakes.some(s => s.body.some((b, i) => {
+                // If it's the same snake, ignore the head (index 0)
+                if (s === snake && i === 0) return false;
+                return b.x === head.x && b.y === head.y;
+            }));
+
+            if (collision) {
                 alert(`${snake.name} crashed!`);
-                resetGame();
+                gameRunning = false;
+                setTimeout(resetGame, 100);
                 return false;
             }
 
             snake.body.unshift(head);
-            if (head.x === food.x && head.y === food.y) {
-                score++;
+            const foodIndex = foods.findIndex(f => f.x === head.x && f.y === head.y);
+            if (foodIndex !== -1) {
+                const eatenFood = foods[foodIndex];
+                score += FOOD_TYPES[eatenFood.type].score;
                 document.getElementById('score').innerText = `Score: ${score}`;
+                foods.splice(foodIndex, 1);
                 spawnFood();
             } else {
                 snake.body.pop();
@@ -160,7 +210,13 @@
                     {x: current.x+1, y: current.y}, {x: current.x-1, y: current.y},
                     {x: current.x, y: current.y+1}, {x: current.x, y: current.y-1}
                 ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
-                 .filter(p => !isOccupied(p.x, p.y));
+                 .filter(p => {
+                     // In A* pathfinding, we need to avoid all snake bodies.
+                     // However, we should be careful not to block ourselves by our own head's current position
+                     // or the current positions of other heads if they are moving.
+                     // For A*, let's just use the strict isOccupied.
+                     return !isOccupied(p.x, p.y);
+                 });
 
                 for (let neighbor of neighbors) {
                     let tentativeGScore = gScore[key(current)] + 1;
@@ -205,13 +261,16 @@
         function draw() {
             drawBackground();
             
-            // Draw Food
-            const fx = food.x * gridSize;
-            const fy = food.y * gridSize;
-            ctx.fillStyle = '#ff0044';
-            ctx.fillRect(fx + 2, fy + 2, gridSize - 4, gridSize - 4);
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(fx + 4, fy + 4, 4, 4);
+            // Draw Foods
+            foods.forEach(f => {
+                const fx = f.x * gridSize;
+                const fy = f.y * gridSize;
+                const config = FOOD_TYPES[f.type];
+                ctx.fillStyle = config.color;
+                ctx.fillRect(fx + 2, fy + 2, gridSize - 4, gridSize - 4);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(fx + 4, fy + 4, 4, 4);
+            });
 
             // Draw Snakes
             snakes.forEach(snake => {
@@ -243,28 +302,20 @@
             });
         }
 
-        function splitSnake(index) {
-            const parent = snakes[index];
-            if (parent.body.length <= 2) return;
-
-            const L = parent.body.length;
-            const splitIndex = Math.ceil(L / 2);
-            
-            const part1Body = parent.body.slice(0, splitIndex);
-            const part2Body = parent.body.slice(splitIndex);
-            
-            // Update parent
-            parent.body = part1Body;
-            
-            // Create child
-            const childName = parent.name.endsWith('Jr.') ? parent.name + 'I' : parent.name + ' Jr.';
-            const child = initSnake(childName, part2Body);
-            snakes.push(child);
-        }
-
         function gameLoop() {
-            snakes.forEach((snake, index) => {
-                const path = getPath(snake, food);
+            if (!gameRunning) return;
+
+            // Use a copy of the snakes array to avoid issues when splitting
+            const currentSnakes = [...snakes];
+            currentSnakes.forEach((snake, index) => {
+                // Remove expired foods
+                const now = Date.now();
+                foods = foods.filter(f => f.expires > now);
+                if (foods.length === 0) spawnFood();
+
+                // Target the first food for now
+                const target = foods[0];
+                const path = getPath(snake, target);
                 if (path && path.length > 0) {
                     snake.dx = path[0].x - snake.body[0].x;
                     snake.dy = path[0].y - snake.body[0].y;
@@ -272,12 +323,7 @@
                     findSurvivalMove(snake);
                 }
                 
-                if (moveSnake(snake)) {
-                    // 0.5% probability to split if length > 2
-                    if (snake.body.length > 2 && Math.random() < 0.005) {
-                        splitSnake(index);
-                    }
-                }
+                moveSnake(snake);
             });
             draw();
             setTimeout(gameLoop, 100);
