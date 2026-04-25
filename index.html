@@ -73,27 +73,27 @@
         }
 
         function spawnFood() {
-            const typeRoll = Math.random();
-            let type;
-            if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
-                type = 'LEGENDARY';
-            } else if (typeRoll < FOOD_TYPES.LEGENDARY.chance + FOOD_TYPES.RARE.chance) {
-                type = 'RARE';
-            } else {
-                type = 'NORMAL';
-            }
+            while (foods.length < 5) {
+                const typeRoll = Math.random();
+                let type;
+                if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
+                    type = 'LEGENDARY';
+                } else if (typeRoll < FOOD_TYPES.LEGENDARY.chance + FOOD_TYPES.RARE.chance) {
+                    type = 'RARE';
+                } else {
+                    type = 'NORMAL';
+                }
 
-            const newFood = {
-                x: Math.floor(Math.random() * tileCount),
-                y: Math.floor(Math.random() * tileCount),
-                type: type,
-                expires: Date.now() + FOOD_TYPES[type].duration
-            };
+                const newFood = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount),
+                    type: type,
+                    expires: Date.now() + FOOD_TYPES[type].duration
+                };
 
-            if (isOccupied(newFood.x, newFood.y) || foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
-                spawnFood();
-            } else {
-                foods.push(newFood);
+                if (!isOccupied(newFood.x, newFood.y) && !foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
+                    foods.push(newFood);
+                }
             }
         }
 
@@ -262,10 +262,18 @@
             drawBackground();
             
             // Draw Foods
+            const now = Date.now();
             foods.forEach(f => {
+                const config = FOOD_TYPES[f.type];
+                const timeLeft = f.expires - now;
+                
+                // Flicker effect when less than 25% time remains
+                if (timeLeft < config.duration * 0.25) {
+                    if (Math.floor(now / 150) % 2 === 0) return;
+                }
+
                 const fx = f.x * gridSize;
                 const fy = f.y * gridSize;
-                const config = FOOD_TYPES[f.type];
                 ctx.fillStyle = config.color;
                 ctx.fillRect(fx + 2, fy + 2, gridSize - 4, gridSize - 4);
                 ctx.fillStyle = '#fff';
@@ -305,20 +313,33 @@
         function gameLoop() {
             if (!gameRunning) return;
 
+            // Remove expired foods
+            const now = Date.now();
+            foods = foods.filter(f => f.expires > now);
+            spawnFood();
+
             // Use a copy of the snakes array to avoid issues when splitting
             const currentSnakes = [...snakes];
             currentSnakes.forEach((snake, index) => {
-                // Remove expired foods
-                const now = Date.now();
-                foods = foods.filter(f => f.expires > now);
-                if (foods.length === 0) spawnFood();
+                // Target the closest food
+                let target = null;
+                let minDist = Infinity;
+                foods.forEach(f => {
+                    const d = Math.abs(f.x - snake.body[0].x) + Math.abs(f.y - snake.body[0].y);
+                    if (d < minDist) {
+                        minDist = d;
+                        target = f;
+                    }
+                });
 
-                // Target the first food for now
-                const target = foods[0];
-                const path = getPath(snake, target);
-                if (path && path.length > 0) {
-                    snake.dx = path[0].x - snake.body[0].x;
-                    snake.dy = path[0].y - snake.body[0].y;
+                if (target) {
+                    const path = getPath(snake, target);
+                    if (path && path.length > 0) {
+                        snake.dx = path[0].x - snake.body[0].x;
+                        snake.dy = path[0].y - snake.body[0].y;
+                    } else {
+                        findSurvivalMove(snake);
+                    }
                 } else {
                     findSurvivalMove(snake);
                 }
