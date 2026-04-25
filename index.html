@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Snake Prototype</title>
+    <style>
+        body { background: #1a1c2c; display: flex; flex-direction: column; align-items: center; color: #fff; font-family: monospace; }
+        #ui { width: 400px; display: flex; justify-content: space-between; padding: 10px; }
+        #health-bar { display: flex; gap: 2px; }
+        .hp-segment { width: 10px; height: 10px; background: #ff0044; border: 1px solid #000; }
+        .hp-segment.lost { background: #333; }
+        canvas { border: 4px solid #333; image-rendering: pixelated; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="health-bar"></div>
+        <div id="score">Score: 0</div>
+    </div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = 20;
+
+        function drawBackground() {
+            ctx.fillStyle = '#1a1c2c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#222';
+            for(let i=0; i<tileCount; i++) {
+                for(let j=0; j<tileCount; j++) {
+                    ctx.strokeRect(i*gridSize, j*gridSize, gridSize, gridSize);
+                }
+            }
+        }
+        drawBackground();
+    </script>
+</body>
+</html>
