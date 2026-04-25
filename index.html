@@ -185,10 +185,38 @@
 
         function draw() {
             drawBackground();
-            ctx.fillStyle = '#ff0044';
-            ctx.fillRect(food.x*gridSize, food.y*gridSize, gridSize, gridSize);
-            ctx.fillStyle = '#33e033';
-            snake.forEach(s => ctx.fillRect(s.x*gridSize, s.y*gridSize, gridSize, gridSize));
+            
+            // Draw Food (Pixel Art Style)
+            const fx = food.x * gridSize;
+            const fy = food.y * gridSize;
+            ctx.fillStyle = '#ff0044'; // Apple Red
+            ctx.fillRect(fx + 2, fy + 2, gridSize - 4, gridSize - 4);
+            ctx.fillStyle = '#fff'; // Shine
+            ctx.fillRect(fx + 4, fy + 4, 4, 4);
+
+            // Draw Snake
+            snake.forEach((s, i) => {
+                const sx = s.x * gridSize;
+                const sy = s.y * gridSize;
+                
+                if (i === 0) {
+                    // Head
+                    ctx.fillStyle = '#ffffff'; // White head for clear direction
+                    ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+                    // Optional: Draw eyes
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(sx + 4, sy + 4, 3, 3);
+                    ctx.fillRect(sx + 13, sy + 4, 3, 3);
+                } else {
+                    // Body
+                    ctx.fillStyle = '#33e033'; // Classic Pixel Green
+                    ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+                    
+                    // Add a small inner square for detail
+                    ctx.fillStyle = '#22b122';
+                    ctx.fillRect(sx + 4, sy + 4, gridSize - 8, gridSize - 8);
+                }
+            });
         }
 
         function gameLoop() {
