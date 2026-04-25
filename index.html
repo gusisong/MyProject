@@ -203,8 +203,27 @@
             });
         }
 
+        function splitSnake(index) {
+            const parent = snakes[index];
+            if (parent.body.length <= 2) return;
+
+            const L = parent.body.length;
+            const splitIndex = Math.ceil(L / 2);
+            
+            const part1Body = parent.body.slice(0, splitIndex);
+            const part2Body = parent.body.slice(splitIndex);
+            
+            // Update parent
+            parent.body = part1Body;
+            
+            // Create child
+            const childName = parent.name.endsWith('Jr.') ? parent.name + 'I' : parent.name + ' Jr.';
+            const child = initSnake(childName, part2Body);
+            snakes.push(child);
+        }
+
         function gameLoop() {
-            snakes.forEach(snake => {
+            snakes.forEach((snake, index) => {
                 const path = getPath(snake, food);
                 if (path && path.length > 0) {
                     snake.dx = path[0].x - snake.body[0].x;
@@ -212,7 +231,13 @@
                 } else {
                     findSurvivalMove(snake);
                 }
-                moveSnake(snake);
+                
+                if (moveSnake(snake)) {
+                    // 0.5% probability to split if length > 2
+                    if (snake.body.length > 2 && Math.random() < 0.005) {
+                        splitSnake(index);
+                    }
+                }
             });
             draw();
             setTimeout(gameLoop, 100);
