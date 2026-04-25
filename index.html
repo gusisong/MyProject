@@ -34,6 +34,82 @@
             }
         }
         drawBackground();
+
+        let snake = [{x: 10, y: 10}];
+        let food = {x: 5, y: 5};
+        let health = 20;
+        let score = 0;
+        let dx = 0;
+        let dy = 0;
+
+        function updateHealthUI() {
+            const bar = document.getElementById('health-bar');
+            bar.innerHTML = '';
+            for(let i=0; i<20; i++) {
+                const seg = document.createElement('div');
+                seg.className = 'hp-segment' + (i >= health ? ' lost' : '');
+                bar.appendChild(seg);
+            }
+        }
+
+        function spawnFood() {
+            food = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+            // Ensure food doesn't spawn on snake
+            if (snake.some(s => s.x === food.x && s.y === food.y)) {
+                spawnFood();
+            }
+        }
+
+        function resetGame() {
+            snake = [{x: 10, y: 10}];
+            health = 20;
+            score = 0;
+            dx = 0;
+            dy = 0;
+            spawnFood();
+            updateHealthUI();
+            document.getElementById('score').innerText = `Score: ${score}`;
+        }
+
+        function moveSnake() {
+            if (dx === 0 && dy === 0) return true; // Don't move if no direction
+
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            
+            // Wall collision
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                health--;
+                updateHealthUI();
+                if (health <= 0) {
+                    alert('Game Over: Out of health!');
+                    resetGame();
+                }
+                return false; 
+            }
+
+            // Self collision
+            if (snake.some(s => s.x === head.x && s.y === head.y)) {
+                alert('Game Over: Bit yourself!');
+                resetGame();
+                return false;
+            }
+
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                document.getElementById('score').innerText = `Score: ${score}`;
+                spawnFood();
+            } else {
+                snake.pop();
+            }
+            return true;
+        }
+
+        // Initial UI setup
+        updateHealthUI();
     </script>
 </body>
 </html>
