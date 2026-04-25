@@ -38,9 +38,9 @@
         }
 
         const FOOD_TYPES = {
-            NORMAL: { color: '#ff0044', score: 1, duration: 15000, chance: 0.7 },
-            RARE: { color: '#ffcc00', score: 3, duration: 8000, chance: 0.2 },
-            LEGENDARY: { color: '#aa00ff', score: 10, duration: 4000, chance: 0.1 }
+            NORMAL: { color: '#ff0044', score: 1, duration: 5000, chance: 0.7 },
+            RARE: { color: '#ffcc00', score: 3, duration: 3500, chance: 0.2 },
+            LEGENDARY: { color: '#aa00ff', score: 10, duration: 2000, chance: 0.1 }
         };
 
         let snakes = [];
@@ -48,6 +48,7 @@
         let score = 0;
         let leaderboard = [];
         const namePool = ['Apollo', 'Blaze', 'Comet', 'Dash', 'Echo', 'Falcon', 'Ghost', 'Hunter', 'Icarus', 'Joker', 'Krypton', 'Luna', 'Mars', 'Nova', 'Orion', 'Pulse', 'Quartz', 'Rider', 'Storm', 'Titan'];
+        let usedNames = new Set();
 
         function initSnake(name, body = [{x: 10, y: 10}]) {
             return {
@@ -129,7 +130,13 @@
         let gameRunning = true;
         function resetGame() {
             updateLeaderboard();
-            currentRoundSnakeName = namePool[Math.floor(Math.random() * namePool.length)];
+            let availableNames = namePool.filter(name => !usedNames.has(name));
+            if (availableNames.length === 0) {
+                usedNames.clear();
+                availableNames = [...namePool];
+            }
+            currentRoundSnakeName = availableNames[Math.floor(Math.random() * availableNames.length)];
+            usedNames.add(currentRoundSnakeName);
             snakes = [initSnake(currentRoundSnakeName)];
             score = 0;
             foods = [];
