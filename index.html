@@ -49,13 +49,17 @@
             };
         }
 
+        function isOccupied(x, y) {
+            return snakes.some(s => s.body.some(b => b.x === x && b.y === y));
+        }
+
         function spawnFood() {
             food = {
                 x: Math.floor(Math.random() * tileCount),
                 y: Math.floor(Math.random() * tileCount)
             };
             // Ensure food doesn't spawn on any snake
-            if (snakes.some(snake => snake.body.some(s => s.x === food.x && s.y === food.y))) {
+            if (isOccupied(food.x, food.y)) {
                 spawnFood();
             }
         }
@@ -81,8 +85,8 @@
                 return false; 
             }
 
-            // Self and other snake collision
-            if (snakes.some(s => s.body.some(seg => seg.x === head.x && seg.y === head.y))) {
+            // Global collision detection
+            if (isOccupied(head.x, head.y)) {
                 alert(`${snake.name} crashed!`);
                 resetGame();
                 return false;
@@ -128,7 +132,7 @@
                     {x: current.x+1, y: current.y}, {x: current.x-1, y: current.y},
                     {x: current.x, y: current.y+1}, {x: current.x, y: current.y-1}
                 ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
-                 .filter(p => !snakes.some(s => s.body.some(seg => seg.x === p.x && seg.y === p.y)));
+                 .filter(p => !isOccupied(p.x, p.y));
 
                 for (let neighbor of neighbors) {
                     let tentativeGScore = gScore[key(current)] + 1;
@@ -151,7 +155,7 @@
                 {x: head.x+1, y: head.y}, {x: head.x-1, y: head.y},
                 {x: head.x, y: head.y+1}, {x: head.x, y: head.y-1}
             ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
-             .filter(p => !snakes.some(s => s.body.some(seg => seg.x === p.x && seg.y === p.y)));
+             .filter(p => !isOccupied(p.x, p.y));
 
             if (neighbors.length > 0) {
                 const tail = snake.body[snake.body.length - 1];
