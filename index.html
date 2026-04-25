@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Snake Prototype</title>
+    <style>
+        body { background: #1a1c2c; display: flex; flex-direction: column; align-items: center; color: #fff; font-family: monospace; }
+        #ui { width: 400px; display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        #leaderboard { display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #444; border-radius: 5px; width: 100%; margin-top: 10px; box-sizing: border-box; }
+        .leaderboard-title { text-align: center; color: #ffcc00; margin-bottom: 8px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        .leaderboard-item { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; }
+        .leaderboard-item span.rank { color: #fff; width: 25px; }
+        .leaderboard-item span.score { color: #00ff88; flex-grow: 1; text-align: left; margin-left: 10px; }
+        .leaderboard-item span.date { color: #666; font-size: 10px; }
+        canvas { border: 4px solid #333; image-rendering: pixelated; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="score">Score: 0</div>
+        <div id="leaderboard"></div>
+    </div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = 20;
+
+        function drawBackground() {
+            ctx.fillStyle = '#1a1c2c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#222';
+            for(let i=0; i<tileCount; i++) {
+                for(let j=0; j<tileCount; j++) {
+                    ctx.strokeRect(i*gridSize, j*gridSize, gridSize, gridSize);
+                }
+            }
+        }
+
+        let snakes = [];
+        let food = {x: 5, y: 5};
+        let score = 0;
+        let leaderboard = [];
+        const namePool = ['Apollo', 'Blaze', 'Comet', 'Dash', 'Echo'];
+
+        function initSnake(name, body = [{x: 10, y: 10}]) {
+            return {
+                body: body,
+                name: name,
+                dx: 0,
+                dy: 0,
+                color: `hsl(${Math.random() * 360}, 70%, 60%)`
+            };
+        }
+
+        function isOccupied(x, y) {
+            return snakes.some(s => s.body.some(b => b.x === x && b.y === y));
+        }
+
+        function spawnFood() {
+            food = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+            // Ensure food doesn't spawn on any snake
+            if (isOccupied(food.x, food.y)) {
+                spawnFood();
+            }
+        }
+
+        function updateLeaderboard() {
+            if (score > 0) {
+                leaderboard.push({score: score, date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})});
+                leaderboard.sort((a, b) => b.score - a.score);
+                leaderboard = leaderboard.slice(0, 5);
+            }
+            
+            const lbDiv = document.getElementById('leaderboard');
+            let html = '<div class="leaderboard-title">TOP 5 RANKING</div>';
+            if (leaderboard.length === 0) {
+                html += '<div style="text-align:center; color:#666; font-size:12px;">No records yet</div>';
+            } else {
+                html += leaderboard.map((l, i) => 
+                    `<div class="leaderboard-item">
+                        <span class="rank">#${i+1}</span>
+                        <span class="score">${l.score} PTS</span>
+                        <span class="date">${l.date}</span>
+                    </div>`
+                ).join('');
+            }
+            lbDiv.innerHTML = html;
+        }
+
+        function resetGame() {
+            updateLeaderboard();
+            snakes = [initSnake(namePool[Math.floor(Math.random() * namePool.length)])];
+            score = 0;
+            spawnFood();
+            document.getElementById('score').innerText = `Score: ${score}`;
+        }
+
+        resetGame();
+
+        function moveSnake(snake) {
+            if (snake.dx === 0 && snake.dy === 0) return true;
+
+            const head = {x: snake.body[0].x + snake.dx, y: snake.body[0].y + snake.dy};
+            
+            // Wall collision
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                alert(`${snake.name} hit the wall!`);
+                resetGame();
+                return false; 
+            }
+
+            // Global collision detection
+            if (isOccupied(head.x, head.y)) {
+                alert(`${snake.name} crashed!`);
+                resetGame();
+                return false;
+            }
+
+            snake.body.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                document.getElementById('score').innerText = `Score: ${score}`;
+                spawnFood();
+            } else {
+                snake.body.pop();
+            }
+            return true;
+        }
+
+        function getPath(snake, target) {
+            const start = snake.body[0];
+            const openSet = [start];
+            const cameFrom = new Map();
+            const gScore = {};
+            const fScore = {};
+            const key = p => `${p.x},${p.y}`;
+
+            gScore[key(start)] = 0;
+            fScore[key(start)] = Math.abs(start.x - target.x) + Math.abs(start.y - target.y);
+
+            while (openSet.length > 0) {
+                openSet.sort((a, b) => fScore[key(a)] - fScore[key(b)]);
+                const current = openSet.shift();
+
+                if (current.x === target.x && current.y === target.y) {
+                    const path = [];
+                    let curr = current;
+                    while (cameFrom.has(key(curr))) {
+                        path.push(curr);
+                        curr = cameFrom.get(key(curr));
+                    }
+                    return path.reverse();
+                }
+
+                const neighbors = [
+                    {x: current.x+1, y: current.y}, {x: current.x-1, y: current.y},
+                    {x: current.x, y: current.y+1}, {x: current.x, y: current.y-1}
+                ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
+                 .filter(p => !isOccupied(p.x, p.y));
+
+                for (let neighbor of neighbors) {
+                    let tentativeGScore = gScore[key(current)] + 1;
+                    if (tentativeGScore < (gScore[key(neighbor)] || Infinity)) {
+                        cameFrom.set(key(neighbor), current);
+                        gScore[key(neighbor)] = tentativeGScore;
+                        fScore[key(neighbor)] = tentativeGScore + Math.abs(neighbor.x - target.x) + Math.abs(neighbor.y - target.y);
+                        if (!openSet.some(p => p.x === neighbor.x && p.y === neighbor.y)) {
+                            openSet.push(neighbor);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function findSurvivalMove(snake) {
+            const head = snake.body[0];
+            const neighbors = [
+                {x: head.x+1, y: head.y}, {x: head.x-1, y: head.y},
+                {x: head.x, y: head.y+1}, {x: head.x, y: head.y-1}
+            ].filter(p => p.x >= 0 && p.x < tileCount && p.y >= 0 && p.y < tileCount)
+             .filter(p => !isOccupied(p.x, p.y));
+
+            if (neighbors.length > 0) {
+                const tail = snake.body[snake.body.length - 1];
+                let bestMove = neighbors[0];
+                let maxDist = -1;
+                
+                for (let n of neighbors) {
+                    let dist = Math.abs(n.x - tail.x) + Math.abs(n.y - tail.y);
+                    if (dist > maxDist) {
+                        maxDist = dist;
+                        bestMove = n;
+                    }
+                }
+                snake.dx = bestMove.x - head.x;
+                snake.dy = bestMove.y - head.y;
+            }
+        }
+
+        function draw() {
+            drawBackground();
+            
+            // Draw Food
+            const fx = food.x * gridSize;
+            const fy = food.y * gridSize;
+            ctx.fillStyle = '#ff0044';
+            ctx.fillRect(fx + 2, fy + 2, gridSize - 4, gridSize - 4);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(fx + 4, fy + 4, 4, 4);
+
+            // Draw Snakes
+            snakes.forEach(snake => {
+                const head = snake.body[0];
+                
+                // Draw Name
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(snake.name, head.x * gridSize + gridSize/2, head.y * gridSize - 5);
+
+                snake.body.forEach((s, i) => {
+                    const sx = s.x * gridSize;
+                    const sy = s.y * gridSize;
+                    
+                    if (i === 0) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(sx + 4, sy + 4, 3, 3);
+                        ctx.fillRect(sx + 13, sy + 4, 3, 3);
+                    } else {
+                        ctx.fillStyle = snake.color;
+                        ctx.fillRect(sx + 1, sy + 1, gridSize - 2, gridSize - 2);
+                        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                        ctx.fillRect(sx + 4, sy + 4, gridSize - 8, gridSize - 8);
+                    }
+                });
+            });
+        }
+
+        function splitSnake(index) {
+            const parent = snakes[index];
+            if (parent.body.length <= 2) return;
+
+            const L = parent.body.length;
+            const splitIndex = Math.ceil(L / 2);
+            
+            const part1Body = parent.body.slice(0, splitIndex);
+            const part2Body = parent.body.slice(splitIndex);
+            
+            // Update parent
+            parent.body = part1Body;
+            
+            // Create child
+            const childName = parent.name.endsWith('Jr.') ? parent.name + 'I' : parent.name + ' Jr.';
+            const child = initSnake(childName, part2Body);
+            snakes.push(child);
+        }
+
+        function gameLoop() {
+            snakes.forEach((snake, index) => {
+                const path = getPath(snake, food);
+                if (path && path.length > 0) {
+                    snake.dx = path[0].x - snake.body[0].x;
+                    snake.dy = path[0].y - snake.body[0].y;
+                } else {
+                    findSurvivalMove(snake);
+                }
+                
+                if (moveSnake(snake)) {
+                    // 0.5% probability to split if length > 2
+                    if (snake.body.length > 2 && Math.random() < 0.005) {
+                        splitSnake(index);
+                    }
+                }
+            });
+            draw();
+            setTimeout(gameLoop, 100);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
