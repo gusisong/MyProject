@@ -92,7 +92,8 @@
             }
         }
 
-        function spawnOneFood() {
+        function spawnOneFood(retryCount = 0) {
+            if (retryCount > 10) return;
             const typeRoll = Math.random();
             let type;
             if (typeRoll < FOOD_TYPES.LEGENDARY.chance) {
@@ -113,7 +114,7 @@
             if (!isOccupied(newFood.x, newFood.y) && !foods.some(f => f.x === newFood.x && f.y === newFood.y)) {
                 foods.push(newFood);
             } else {
-                spawnOneFood(); // Retry
+                spawnOneFood(retryCount + 1); // Retry
             }
         }
 
